@@ -1,0 +1,219 @@
+# DigiSpec YAML Template — Shampoo Formulation (Cosmetics)
+# This template drives extraction for cosmetics shampoo PDFs
+# Created: Feb 2026 | BA Workshop output
+
+template:
+  id: TPL-FORM-SHAMPOO
+  version: "2.1"
+  name: "Formulation — Shampoo (Cosmetics)"
+  document_type: Formulation
+  product_category: "Cosmetics - Hair Care"
+  description: >
+    Standard cosmetics shampoo formulation with 7-column composition table.
+    Covers colour-protect, anti-dandruff, herbal, and moisturising shampoos.
+  sample_pdfs:
+    - FS-PID-017  # Anti-Dandruff Shampoo
+    - FS-PID-018  # Moisturising Shampoo
+    - FS-PID-019  # Herbal Shampoo
+    - FS-PID-020  # Colour-Protect Shampoo
+  created_by: "BA Workshop"
+  created_date: "2026-02-15"
+
+# Raw Data Model mapping — fields extracted by this template
+# Each section maps PDF content → Raw Data Model superset fields
+sections:
+  - key: identification
+    title: "Product Identification"
+    content_type: key_value_pairs
+    page_hint: 1
+    fields:
+      - pdf_label: "Document No."
+        model_field: document_id
+        data_type: string
+        required: true
+      - pdf_label: "Product Name"
+        model_field: product_name
+        data_type: string
+        required: true
+      - pdf_label: "Product Identifier (PID)"
+        model_field: pid
+        data_type: string
+        required: true
+        pattern: "PID-\\d{3}"
+      - pdf_label: "Version"
+        model_field: version
+        data_type: string
+        required: true
+      - pdf_label: "Effective Date"
+        model_field: effective_date
+        data_type: date
+        required: true
+      - pdf_label: "Site"
+        model_field: manufacturing_site
+        data_type: string
+        required: false
+      - pdf_label: "Dosage Form"
+        model_field: dosage_form
+        data_type: string
+        required: true
+      - pdf_label: "Route"
+        model_field: route
+        data_type: string
+        required: false
+      - pdf_label: "Standard"
+        model_field: compendial_standard
+        data_type: string
+        required: false
+      - pdf_label: "Prepared by"
+        model_field: prepared_by
+        data_type: string
+        required: false
+      - pdf_label: "Approved by"
+        model_field: approved_by
+        data_type: string
+        required: false
+
+  - key: composition
+    title: "Qualitative and Quantitative Composition"
+    content_type: table
+    page_hint: 1
+    table_columns:
+      - pdf_header: "Component"
+        model_field: component_name
+        data_type: string
+        required: true
+        notes: "May include RMC code in brackets [RMC-XXX]"
+      - pdf_header: "RMC"
+        model_field: rmc_code
+        data_type: string
+        required: true
+        pattern: "RMC-\\d{3}"
+        embedded_in: "Component"
+        extraction_hint: "Extract from brackets in Component column if separate column not present"
+      - pdf_header: "Function"
+        model_field: function
+        data_type: string
+        required: true
+      - pdf_header: "Quantity"
+        model_field: quantity
+        data_type: numeric
+        required: true
+        range: [0, 100]
+        allows_qs: true  # allows "q.s." and "q.s. to 100"
+      - pdf_header: "Unit"
+        model_field: unit
+        data_type: string
+        required: true
+        expected_value: "% w/w"
+      - pdf_header: "Supplier"
+        model_field: supplier
+        data_type: string
+        required: false
+        known_values:
+          - "NovaChem Ltd."
+          - "Apex Materials"
+          - "Crescent Labs"
+          - "BlueRiver Pharma"
+          - "Helix Bio"
+      - pdf_header: "Country"
+        model_field: country_of_origin
+        data_type: string
+        required: false
+        known_values:
+          - "India"
+          - "Germany"
+          - "UK"
+          - "USA"
+          - "Switzerland"
+          - "France"
+          - "China"
+          - "Japan"
+
+  - key: specifications
+    title: "Finished Product Specifications"
+    content_type: table
+    page_hint: 2
+    table_columns:
+      - pdf_header: "Test"
+        model_field: test_name
+        data_type: string
+        required: true
+      - pdf_header: "Specification"
+        model_field: specification
+        data_type: string
+        required: true
+        notes: "May contain ranges (e.g. 5.0-7.0), limits (e.g. <= 500), or descriptions"
+      - pdf_header: "Method"
+        model_field: test_method
+        data_type: string
+        required: true
+        pattern_hints:
+          - "BP"        # British Pharmacopoeia
+          - "ISO"       # International Standard
+          - "In-house"  # Internal method
+
+  - key: packaging
+    title: "Packaging & Labelling"
+    content_type: key_value_pairs
+    page_hint: 2
+    fields:
+      - pdf_label: "Primary Pack"
+        model_field: primary_packaging
+        data_type: string
+        required: false
+      - pdf_label: "Secondary Pack"
+        model_field: secondary_packaging
+        data_type: string
+        required: false
+      - pdf_label: "Label Requirements"
+        model_field: label_requirements
+        data_type: string
+        required: false
+
+  - key: references
+    title: "References & Compliance"
+    content_type: list
+    page_hint: 2
+    model_field: regulatory_references
+    data_type: string_list
+
+# Validation rules — drive confidence checks C12 (Business Rules)
+business_rules:
+  - id: BR-01
+    description: "Non-q.s. ingredient percentages must sum to less than 100%"
+    type: sum_check
+    scope: composition
+    field: quantity
+    exclude_values: ["q.s.", "q.s. to 100"]
+    max_sum: 100
+    severity: amber
+
+  - id: BR-02
+    description: "RMC codes must be sequential with no gaps"
+    type: sequential_check
+    scope: composition
+    field: rmc_code
+    severity: amber
+
+  - id: BR-03
+    description: "No duplicate ingredient names allowed"
+    type: unique_check
+    scope: composition
+    field: component_name
+    severity: amber
+
+# Confidence check configuration — which of the 13 checks apply
+confidence_checks:
+  C01_completeness: { enabled: true }
+  C02_pattern_match: { enabled: true }
+  C03_rmc_format: { enabled: true, pattern: "RMC-\\d{3}" }
+  C04_numeric_range: { enabled: true, range: [0, 10000] }
+  C05_character_integrity: { enabled: true }
+  C06_source_match: { enabled: true, green_threshold: 0.80, red_threshold: 0.50 }
+  C07_structural_validation: { enabled: true }
+  C08_cross_field: { enabled: true }
+  C09_known_value_lookup: { enabled: true }
+  C10_misread_detection: { enabled: true }
+  C11_unit_consistency: { enabled: true, expected_unit: "% w/w" }
+  C12_business_rules: { enabled: true }
+  C13_merge_artifact: { enabled: true }
